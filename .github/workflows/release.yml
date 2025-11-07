@@ -1,9 +1,9 @@
 name: Release Build
 
 on:
+  # ! workflow_dispatch 用于手动触发预览版本，跳过版本检查、telegram通知、winget发布。
+  workflow_dispatch:
   # ! 为了避免重复发布版本，应当通过独特 git tag 触发。
-  # ! 不再使用 workflow_dispatch 触发。
-  # workflow_dispatch:
   push:
     tags:
       - "v*.*.*"
@@ -21,6 +21,7 @@ jobs:
   check_tag_version:
     name: Check Release Tag and package.json Version Consistency
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -113,26 +114,27 @@ jobs:
 
           ### Windows (不再支持Win7)
           #### 正常版本(推荐)
-          - [64位(常用)](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_x64-setup.exe) | [ARM64(不常用)](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_arm64-setup.exe)
+          - [64位(常用)](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_x64-setup_windows.exe) | [ARM64(不常用)](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_arm64-setup_windows.exe)
 
           #### 内置Webview2版(体积较大，仅在企业版系统或无法安装webview2时使用)
           - [64位](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_x64_fixed_webview2-setup.exe) | [ARM64](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_arm64_fixed_webview2-setup.exe)
 
           ### macOS
-          - [Apple M芯片](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_aarch64.dmg) | [Intel芯片](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_x64.dmg)
+          - [Apple M芯片](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_aarch64_darwin.dmg) | [Intel芯片](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_x64_darwin.dmg)
 
           ### Linux
           #### DEB包(Debian系) 使用 apt ./路径 安装
-          - [64位](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_amd64.deb) | [ARM64](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_arm64.deb) | [ARMv7](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_armhf.deb)
+          - [64位](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_amd64_linux.deb) | [ARM64](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_arm64.deb) | [ARMv7](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_armhf.deb)
 
           #### RPM包(Redhat系) 使用 dnf ./路径 安装
-          - [64位](${{ env.DOWNLOAD_URL }}/Clash.Verge-${{ env.VERSION }}-1.x86_64.rpm) | [ARM64](${{ env.DOWNLOAD_URL }}/Clash.Verge-${{ env.VERSION }}-1.aarch64.rpm) | [ARMv7](${{ env.DOWNLOAD_URL }}/Clash.Verge-${{ env.VERSION }}-1.armhfp.rpm)
+          - [64位](${{ env.DOWNLOAD_URL }}/Clash.Verge-${{ env.VERSION }}-1.x86_64_linux.rpm) | [ARM64](${{ env.DOWNLOAD_URL }}/Clash.Verge-${{ env.VERSION }}-1.aarch64.rpm) | [ARMv7](${{ env.DOWNLOAD_URL }}/Clash.Verge-${{ env.VERSION }}-1.armhfp.rpm)
 
           ### FAQ
           - [常见问题](https://clash-verge-rev.github.io/faq/windows.html)
 
           ### 稳定机场VPN推荐
           - [狗狗加速](https://verge.dginv.click/#/register?code=oaxsAGo6)
+
           Created at ${{ env.BUILDTIME }}.
           EOF
 
@@ -143,13 +145,14 @@ jobs:
           name: "Clash Verge Rev ${{ env.TAG_NAME }}"
           body_path: release.txt
           draft: false
-          prerelease: false
+          prerelease: ${{ github.event_name == 'workflow_dispatch' }}
           token: ${{ secrets.GITHUB_TOKEN }}
           # generate_release_notes: true
 
   release:
     name: Release Build
     needs: [check_tag_version]
+    if: always() && (needs.check_tag_version.result == 'success' || needs.check_tag_version.result == 'skipped')
     strategy:
       fail-fast: false
       matrix:
@@ -230,7 +233,7 @@ jobs:
           releaseName: "Clash Verge Rev ${{ github.ref_name }}"
           releaseBody: "Draft release, will be updated later."
           releaseDraft: true
-          prerelease: false
+          prerelease: ${{ github.event_name == 'workflow_dispatch' }}
           tauriScript: pnpm
           args: --target ${{ matrix.target }}
           includeUpdaterJson: true
@@ -238,6 +241,7 @@ jobs:
   release-for-linux-arm:
     name: Release Build for Linux ARM
     needs: [check_tag_version]
+    if: always() && (needs.check_tag_version.result == 'success' || needs.check_tag_version.result == 'skipped')
     strategy:
       fail-fast: false
       matrix:
@@ -361,6 +365,7 @@ jobs:
   release-for-fixed-webview2:
     name: Release Build for Fixed WebView2
     needs: [check_tag_version]
+    if: always() && (needs.check_tag_version.result == 'success' || needs.check_tag_version.result == 'skipped')
     strategy:
       fail-fast: false
       matrix:
@@ -507,6 +512,7 @@ jobs:
   submit-to-winget:
     name: Submit to Winget
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch'
     needs: [update_tag, release-update]
     steps:
       - name: Checkout repository
@@ -530,6 +536,7 @@ jobs:
   notify-telegram:
     name: Notify Telegram
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch'
     needs:
       [
         update_tag,
@@ -596,26 +603,27 @@ jobs:
 
           ### Windows (不再支持Win7)
           #### 正常版本(推荐)
-          - [64位(常用)](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_x64-setup.exe) | [ARM64(不常用)](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_arm64-setup.exe)
+          - [64位(常用)](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_x64-setup_windows.exe) | [ARM64(不常用)](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_arm64-setup_windows.exe)
 
           #### 内置Webview2版(体积较大，仅在企业版系统或无法安装webview2时使用)
           - [64位](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_x64_fixed_webview2-setup.exe) | [ARM64](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_arm64_fixed_webview2-setup.exe)
 
           ### macOS
-          - [Apple M芯片](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_aarch64.dmg) | [Intel芯片](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_x64.dmg)
+          - [Apple M芯片](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_aarch64_darwin.dmg) | [Intel芯片](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_x64_darwin.dmg)
 
           ### Linux
           #### DEB包(Debian系) 使用 apt ./路径 安装
-          - [64位](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_amd64.deb) | [ARM64](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_arm64.deb) | [ARMv7](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_armhf.deb)
+          - [64位](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_amd64_linux.deb) | [ARM64](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_arm64.deb) | [ARMv7](${{ env.DOWNLOAD_URL }}/Clash.Verge_${{ env.VERSION }}_armhf.deb)
 
           #### RPM包(Redhat系) 使用 dnf ./路径 安装
-          - [64位](${{ env.DOWNLOAD_URL }}/Clash.Verge-${{ env.VERSION }}-1.x86_64.rpm) | [ARM64](${{ env.DOWNLOAD_URL }}/Clash.Verge-${{ env.VERSION }}-1.aarch64.rpm) | [ARMv7](${{ env.DOWNLOAD_URL }}/Clash.Verge-${{ env.VERSION }}-1.armhfp.rpm)
+          - [64位](${{ env.DOWNLOAD_URL }}/Clash.Verge-${{ env.VERSION }}-1.x86_64_linux.rpm) | [ARM64](${{ env.DOWNLOAD_URL }}/Clash.Verge-${{ env.VERSION }}-1.aarch64.rpm) | [ARMv7](${{ env.DOWNLOAD_URL }}/Clash.Verge-${{ env.VERSION }}-1.armhfp.rpm)
 
           ### FAQ
           - [常见问题](https://clash-verge-rev.github.io/faq/windows.html)
 
           ### 稳定机场VPN推荐
           - [狗狗加速](https://verge.dginv.click/#/register?code=oaxsAGo6)
+
           Created at ${{ env.BUILDTIME }}.
           EOF
 
